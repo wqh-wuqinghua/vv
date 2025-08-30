@@ -2,7 +2,7 @@ name: vv
 
 on:
   schedule:
-    - cron: "0 */6 * * *"   # 每 6 小时执行一次
+    - cron: "0 8,14,20 * * 1-5"   # 每周一到周五，8:00、14:00、20:00 执行
   workflow_dispatch:        # 手动触发
 
 jobs:
