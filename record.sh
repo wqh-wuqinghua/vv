@@ -11,9 +11,39 @@ mkdir -p "$output_folder"
 
 # 检查 RTSP 流是否可用的函数
 check_stream2() {
-}
+  local frame_stuck_count=0
+  local last_frame=0
+  local current_frame=0
 
-PID_FILE="/tmp/ffmpeg_pid.txt"
+  # 使用 ffmpeg 拉取 RTSP 流并获取输出
+  output=$(ffmpeg -hide_banner -loglevel error -timeout 5000000 -rtsp_transport tcp -i "$RTSP_URL" -t 1 -f null - 2>&1)
+  STATUS=$?
+
+  # 打印 ffmpeg 的输出，查看详细错误信息
+  echo "ffmpeg output:"
+  echo "$output"
+
+  # 打印返回码，帮助调试
+  echo "ffmpeg return status code: $STATUS"
+
+  # 判断 RTSP 流是否可用
+  if [[ $output == *"No route to host"* ]]; then
+    echo "RTSP stream is unavailable: No route to host."
+    return 1
+  elif [[ $output == *"Connection refused"* ]]; then
+    echo "RTSP stream is unavailable: Connection refused."
+    return 1
+  elif [[ $output == *"Error opening input"* ]]; then
+    echo "RTSP stream is unavailable: Error opening input."
+    return 1
+  elif [ $STATUS -eq 0 ]; then
+    echo "RTSP stream is available."
+    return 0 # 返回 0 表示流可用
+  else
+    echo "Failed to retrieve RTSP stream. Status code: $STATUS"
+    return 1
+  fi
+}
 
 start_recording() {
   ffmpeg -hide_banner -loglevel error -i "$RTSP_URL" -acodec copy -vcodec copy -f segment -segment_time "$chunk_duration" -reset_timestamps 1 -strftime 1 "$output_pattern" &
