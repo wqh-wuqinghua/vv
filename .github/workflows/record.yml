@@ -15,10 +15,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Connect to Tailscale
-        uses: huggingface/tailscale-action@v1
+        uses: huggingface/tailscale-action@main
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
-          version: 1.66.3  # 可选，指定 tailscale 版本
 
       - name: Install dependencies
         run: |
