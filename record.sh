@@ -1,6 +1,7 @@
 #!/bin/bash
 set -e
 
+
 RTSP_URL="${RTSP_URL}"
 output_folder="./videos"
 chunk_duration="300"   # 每段 5 分钟
