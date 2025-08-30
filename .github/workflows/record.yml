@@ -1,4 +1,4 @@
-name: RTSP Record to Google Drive
+name: vv2gdrive
 
 on:
   schedule:
