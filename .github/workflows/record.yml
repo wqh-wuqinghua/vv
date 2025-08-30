@@ -32,6 +32,10 @@ jobs:
           mkdir -p ~/.config/rclone
           echo "${{ secrets.RCLONE_CONFIG }}" > ~/.config/rclone/rclone.conf
 
+      - name: Test rclone config
+        run: |
+          rclone lsd gdrive:
+
       # 启动录制脚本
       - name: Run recorder
         env:
