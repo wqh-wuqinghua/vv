@@ -1,0 +1,42 @@
+name: RTSP Record to Google Drive
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"   # 每 6 小时执行一次
+  workflow_dispatch:        # 手动触发
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Connect to Tailscale
+        uses: huggingface/tailscale-action@v1
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+          version: 1.66.3  # 可选，指定 tailscale 版本
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg rclone
+
+      - name: Configure rclone
+        run: |
+          mkdir -p ~/.config/rclone
+          echo "${{ secrets.RCLONE_CONFIG }}" > ~/.config/rclone/rclone.conf
+
+      - name: Run recording script
+        env:
+          RTSP_URL: ${{ secrets.RTSP_URL }}
+        run: |
+          chmod +x ./record.sh
+          ./record.sh
+
+      - name: Upload to Google Drive
+        run: |
+          rclone copy ./videos gdrive:rtsp-recordings --create-dirs
