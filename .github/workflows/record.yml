@@ -1,4 +1,4 @@
-name: vv2gdrive
+name: vv
 
 on:
   schedule:
@@ -8,34 +8,33 @@ on:
 jobs:
   record:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 360   # GitHub Actions 单次最大运行 6 小时
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Connect to Tailscale
+      # 启动 tailscale
+      - name: Setup Tailscale
         uses: huggingface/tailscale-action@main
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+          args: "--hostname github-actions-rtsp"
 
+      # 安装依赖
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg rclone
+          sudo apt-get install -y ffmpeg inotify-tools rclone
 
-      - name: Configure rclone
+      # 配置 rclone
+      - name: Setup rclone
         run: |
           mkdir -p ~/.config/rclone
           echo "${{ secrets.RCLONE_CONFIG }}" > ~/.config/rclone/rclone.conf
 
-      - name: Run recording script
-        env:
-          RTSP_URL: ${{ secrets.RTSP_URL }}
+      # 启动录制脚本
+      - name: Run recorder
         run: |
           chmod +x ./record.sh
           ./record.sh
-
-      - name: Upload to Google Drive
-        run: |
-          rclone copy ./videos gdrive:rtsp-recordings --create-dirs
