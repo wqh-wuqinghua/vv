@@ -83,6 +83,10 @@ upload_loop() {
 # 启动上传后台任务
 upload_loop &
 
+# 最大重试次数
+MAX_RETRIES=5
+RETRY_COUNT=0
+
 while true; do
   echo "while start check!!!!"
   if check_stream2; then
@@ -90,12 +94,20 @@ while true; do
       if ! is_ffmpeg_running; then
             echo "RTSP stream available, starting recording..."
             start_recording
+            RETRY_COUNT=0  # 连接成功，重试次数归零
       else
             echo "RTSP stream available, recording is already running."
       fi 
   else
     echo "error"
     kill_ffmpeg
+     RETRY_COUNT=$((RETRY_COUNT + 1))  # 失败，重试次数加一
+
+    if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+      echo "达到最大重试次数 $MAX_RETRIES，退出程序"
+      break  # 达到最大重试次数，退出脚本
+    fi
+    sleep 60  # 延迟 60 秒再重试
   fi
   sleep 5
 done
