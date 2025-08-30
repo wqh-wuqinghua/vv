@@ -19,7 +19,6 @@ jobs:
         uses: huggingface/tailscale-action@main
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
-          args: "--hostname github-actions-rtsp"
 
       # 安装依赖
       - name: Install dependencies
