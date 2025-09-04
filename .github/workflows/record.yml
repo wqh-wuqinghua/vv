@@ -43,7 +43,7 @@ jobs:
           echo "${{ secrets.RCLONE_CONFIG }}" | base64 --decode > ~/.config/rclone/rclone.conf
 
       - name: Test rclone config
-        run: rclone lsd gdrive:
+        run: rclone lsd "gdrive:"
 
       # 时间窗口检查（北京时间）
       - name: Check time window (08:20–20:20 BJT, Mon-Fri)
