@@ -71,7 +71,7 @@ jobs:
 
       - name: Skip (outside window)
         if: steps.timecheck.outputs.run != 'true'
-        run: echo "Skip: Outside 08:20–20:20 BJT window."
+        run: echo "Skip:Outside 08:20–20:20 BJT window."
 
   auto-restart:
     needs: record
