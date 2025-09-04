@@ -1,14 +1,24 @@
 name: vv
 
 on:
-  schedule:
-    - cron: "0 8,14,20 * * 1-5"   # 每周一到周五，8:00、14:00、20:00 执行
   workflow_dispatch:        # 手动触发
+  schedule:
+    # 北京时间 08:20 = UTC 00:20；14:20 = UTC 06:20
+    - cron: "20 0 * * 1-5"
+    - cron: "20 6 * * 1-5"
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: vv
+  cancel-in-progress: false  # 避免新一轮把当前录制中断
 
 jobs:
   record:
     runs-on: ubuntu-latest
-    timeout-minutes: 360   # GitHub Actions 单次最大运行 6 小时
+    timeout-minutes: 360   # 单次最多6小时
 
     steps:
       - name: Checkout repo
@@ -24,7 +34,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg inotify-tools rclone
+          sudo apt-get install -y ffmpeg inotify-tools rclone curl
 
       # 配置 rclone
       - name: Setup rclone
@@ -33,13 +43,54 @@ jobs:
           echo "${{ secrets.RCLONE_CONFIG }}" | base64 --decode > ~/.config/rclone/rclone.conf
 
       - name: Test rclone config
-        run: |
-          rclone lsd gdrive:
+        run: rclone lsd gdrive:
 
-      # 启动录制脚本
+      # 时间窗口检查（北京时间）
+      - name: Check time window (08:20–20:20 BJT, Mon-Fri)
+        id: timecheck
+        run: |
+          DOW=$(TZ=Asia/Shanghai date +%u)  # 1-5是周一到周五
+          NOW=$(TZ=Asia/Shanghai date +%H%M)
+          echo "DOW=$DOW, NOW=$NOW"
+          if [ "$DOW" -le 5 ] && [ "$NOW" -ge 0820 ] && [ "$NOW" -le 2020 ]; then
+            echo "run=true" >> $GITHUB_OUTPUT
+          else
+            echo "run=false" >> $GITHUB_OUTPUT
+          fi
+
+      # 运行录制脚本（里面自己检测RTSP）
       - name: Run recorder
+        if: steps.timecheck.outputs.run == 'true'
         env:
-          RTSP_URL: ${{ secrets.RTSP_URL }}      
+          RTSP_URL: ${{ secrets.RTSP_URL }}
         run: |
           chmod +x ./record.sh
           ./record.sh
+
+      - name: Skip (outside window)
+        if: steps.timecheck.outputs.run != 'true'
+        run: echo "Skip: Outside 08:20–20:20 BJT window."
+
+  # 自动重启逻辑：结束后判断时间，如果还在08:20-20:20内就再触发自己
+  auto-restart:
+    needs: record
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    steps:
+      - name: Check window again
+        id: gate
+        run: |
+          DOW=$(TZ=Asia/Shanghai date +%u)
+          NOW=$(TZ=Asia/Shanghai date +%H%M)
+          if [ "$DOW" -le 5 ] && [ "$NOW" -ge 0820 ] && [ "$NOW" -le 2020 ]; then
+            echo "run=true" >> $GITHUB_OUTPUT
+          else
+            echo "run=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Trigger self
+        if: steps.gate.outputs.run == 'true'
+        uses: benc-uk/workflow-dispatch@v1
+        with:
+          workflow: vv
+          token: ${{ secrets.GITHUB_TOKEN }}
