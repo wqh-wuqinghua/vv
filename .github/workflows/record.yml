@@ -1,4 +1,4 @@
-name: vv
+name: record
 
 on:
   workflow_dispatch:        # 手动触发
@@ -9,47 +9,50 @@ on:
 
 permissions:
   contents: read
+  actions: write
   id-token: write
 
 concurrency:
-  group: vv
-  cancel-in-progress: false  # 避免新一轮把当前录制中断
+  group: record
+  cancel-in-progress: false
 
 jobs:
   record:
     runs-on: ubuntu-latest
-    timeout-minutes: 360   # 单次最多6小时
+    timeout-minutes: 360
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      # 启动 tailscale
       - name: Setup Tailscale
         uses: huggingface/tailscale-action@main
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
 
-      # 安装依赖
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg inotify-tools rclone curl
 
-      # 配置 rclone
       - name: Setup rclone
         run: |
           mkdir -p ~/.config/rclone
           echo "${{ secrets.RCLONE_CONFIG }}" | base64 --decode > ~/.config/rclone/rclone.conf
+          echo "==== /home/runner/.config/rclone/rclone.conf (first 200 lines) ===="
+          head -n 200 ~/.config/rclone/rclone.conf || true
 
       - name: Test rclone config
-        run: rclone lsd "gdrive:"
+        run: |
+          # 列出已配置的 remotes
+          rclone listremotes || true
+          # 如果要测试具体 remote，必须把带冒号的名称用引号包起来，避免 YAML 解析问题
+          rclone lsd "gdrive:" || echo "⚠️ rclone lsd failed - check remote name"
 
-      # 时间窗口检查（北京时间）
       - name: Check time window (08:20–20:20 BJT, Mon-Fri)
         id: timecheck
         run: |
-          DOW=$(TZ=Asia/Shanghai date +%u)  # 1-5是周一到周五
+          DOW=$(TZ=Asia/Shanghai date +%u)
           NOW=$(TZ=Asia/Shanghai date +%H%M)
           echo "DOW=$DOW, NOW=$NOW"
           if [ "$DOW" -le 5 ] && [ "$NOW" -ge 0820 ] && [ "$NOW" -le 2020 ]; then
@@ -58,7 +61,6 @@ jobs:
             echo "run=false" >> $GITHUB_OUTPUT
           fi
 
-      # 运行录制脚本（里面自己检测RTSP）
       - name: Run recorder
         if: steps.timecheck.outputs.run == 'true'
         env:
@@ -71,7 +73,6 @@ jobs:
         if: steps.timecheck.outputs.run != 'true'
         run: echo "Skip: Outside 08:20–20:20 BJT window."
 
-  # 自动重启逻辑：结束后判断时间，如果还在08:20-20:20内就再触发自己
   auto-restart:
     needs: record
     runs-on: ubuntu-latest
@@ -92,5 +93,6 @@ jobs:
         if: steps.gate.outputs.run == 'true'
         uses: benc-uk/workflow-dispatch@v1
         with:
-          workflow: vv
+          workflow: record.yml
+          ref: ${{ github.ref }}
           token: ${{ secrets.GITHUB_TOKEN }}
