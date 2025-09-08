@@ -3,9 +3,9 @@ name: record
 on:
   workflow_dispatch:        # 手动触发
   schedule:
-    # 北京时间 08:20 = UTC 00:20；14:20 = UTC 06:20
-    - cron: "20 0 * * 1-5"
-    - cron: "20 6 * * 1-5"
+    # 北京时间 08:30 = UTC 00:30；14:30 = UTC 06:30
+    - cron: "30 0 * * 1-5"
+    - cron: "30 6 * * 1-5"
 
 permissions:
   contents: read
@@ -19,7 +19,7 @@ concurrency:
 jobs:
   record:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 360   # 最长录制 6 小时
 
     steps:
       - name: Checkout repo
@@ -39,23 +39,20 @@ jobs:
         run: |
           mkdir -p ~/.config/rclone
           echo "${{ secrets.RCLONE_CONFIG }}" | base64 --decode > ~/.config/rclone/rclone.conf
-          echo "==== /home/runner/.config/rclone/rclone.conf (first 200 lines) ===="
           head -n 200 ~/.config/rclone/rclone.conf || true
 
       - name: Test rclone config
         run: |
-          # 列出已配置的 remotes
           rclone listremotes || true
-          # 如果要测试具体 remote，必须把带冒号的名称用引号包起来，避免 YAML 解析问题
           rclone lsd "gdrive:" || echo "⚠️ rclone lsd failed - check remote name"
 
-      - name: Check time window (08:20–20:20 BJT, Mon-Fri)
+      - name: Check time window (08:30–20:30 BJT, Mon-Fri)
         id: timecheck
         run: |
           DOW=$(TZ=Asia/Shanghai date +%u)
           NOW=$(TZ=Asia/Shanghai date +%H%M)
           echo "DOW=$DOW, NOW=$NOW"
-          if [ "$DOW" -le 5 ] && [ "$NOW" -ge 0820 ] && [ "$NOW" -le 2020 ]; then
+          if [ "$DOW" -le 5 ] && [ "$NOW" -ge 0830 ] && [ "$NOW" -le 2030 ]; then
             echo "run=true" >> $GITHUB_OUTPUT
           else
             echo "run=false" >> $GITHUB_OUTPUT
@@ -71,7 +68,7 @@ jobs:
 
       - name: Skip (outside window)
         if: steps.timecheck.outputs.run != 'true'
-        run: echo "Skip:Outside 08:20–20:20 BJT window."
+        run: echo "Skip:Outside 08:30–20:30 BJT window."
 
   auto-restart:
     needs: record
@@ -83,7 +80,7 @@ jobs:
         run: |
           DOW=$(TZ=Asia/Shanghai date +%u)
           NOW=$(TZ=Asia/Shanghai date +%H%M)
-          if [ "$DOW" -le 5 ] && [ "$NOW" -ge 0820 ] && [ "$NOW" -le 2020 ]; then
+          if [ "$DOW" -le 5 ] && [ "$NOW" -ge 0830 ] && [ "$NOW" -le 2030 ]; then
             echo "run=true" >> $GITHUB_OUTPUT
           else
             echo "run=false" >> $GITHUB_OUTPUT
